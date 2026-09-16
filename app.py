@@ -293,44 +293,39 @@ def generate_answer(query: str, docs: pd.DataFrame, client) -> tuple[str, float]
     for _, row in docs.iterrows():
         brand  = row.get("brand", "")
         ptitle = row.get("product_title", "")
-        name   = f"{brand} – {ptitle}".strip(" –") \
-                 if brand and brand not in ["", "Unknown Brand"] else row["title"]
+        name   = f"{brand} – {ptitle[:40]}".strip(" –") \
+                 if brand and brand not in ["", "Unknown Brand"] else row["title"][:60]
 
         if brand and brand not in ["", "Unknown Brand"]:
-            brand_ranking.append(f"Rank #{int(row['rank'])}: {brand} — {ptitle[:50]}")
+            brand_ranking.append(f"Rank #{int(row['rank'])}: {brand}")
 
-        compressed = str(row.get("compressed_text", row["original_text"]))[:400]
+        # Limit each review to 200 chars to stay within token budget
+        compressed = str(row.get("compressed_text", row["original_text"]))[:200]
         context   += f"\n[{row['doc_id']}] {name} ⭐{row.get('rating','?')}\n{compressed}\n"
 
-    brand_ctx = "\n".join(brand_ranking) if brand_ranking else "No brand data"
+    brand_ctx = ", ".join(brand_ranking) if brand_ranking else "No brand data"
 
     prompt = f"""You are a knowledgeable e-commerce product advisor.
 
-Customer query: "{query}"
+Customer query: "{query[:200]}"
 
-Top-ranked brands retrieved:
-{brand_ctx}
+Top brands: {brand_ctx}
 
-Compressed customer review evidence:
-{context}
+Review evidence:
+{context[:1500]}
 
-Instructions:
-- Open by naming the highest-ranked brand and why it fits
-- Weave brand names naturally — "Neutrogena ranks #1 because..."
-- Compare brands if multiple appear
-- Cite review IDs like [DOC_ID]
-- End with a clear brand recommendation
-- 4-5 sentences maximum
+Answer in 4-5 sentences. Name the top brand first, cite review IDs like [DOC_ID], end with a clear recommendation.
 
 Answer:"""
 
-    t0  = time.perf_counter()
-    msg = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=400,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return msg.content[0].text.strip(), time.perf_counter() - t0
+    t0 = time.perf_counter()
+    try:
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=350,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return msg.content[0].text.strip(), time.perf_counter() - t0
 
 
 # ── UI helpers ────────────────────────────────────────────────────────────────
