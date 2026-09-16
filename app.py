@@ -326,6 +326,8 @@ Answer:"""
             messages=[{"role": "user", "content": prompt}],
         )
         return msg.content[0].text.strip(), time.perf_counter() - t0
+    except Exception as e:
+        return f"Could not generate answer: {str(e)[:100]}", time.perf_counter() - t0
 
 
 # ── UI helpers ────────────────────────────────────────────────────────────────
